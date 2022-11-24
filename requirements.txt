@@ -1,5 +1,5 @@
 openvr==1.23.701
-nuitka==0.7.7
+nuitka==1.2.2
 wxpython==4.2.0
 python-osc==1.8.0
 zstandard==0.19.0
