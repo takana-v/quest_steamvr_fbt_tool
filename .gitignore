@@ -160,3 +160,4 @@ cython_debug/
 #.idea/
 
 qsft_log.txt
+qsft_config.ini
