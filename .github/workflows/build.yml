@@ -1,0 +1,93 @@
+name: build
+on:
+  push:
+    branches:
+      - master
+  release:
+    types:
+      - created
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2019
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Python
+        id: setup-python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+          
+      - name: Build with Nuitka
+        shell: bash
+        run:
+          python -m nuitka
+            --standalone
+            --assume-yes-for-downloads
+            --plugin-enable=numpy
+            --follow-import-to=numpy
+            --include-package-data=openvr
+            --follow-imports
+            --no-prefer-source-code
+            quest_steamvr_fbt_tool.py
+
+      - name: Create artifact directory with symlink
+        shell: bash
+        env:
+          MSYS: winsymlinks:nativestrict
+        run: |
+          set -eux
+          mkdir -p artifact
+          ln -sf "$(pwd)/quest_steamvr_fbt_tool.dist"/* artifact/
+          ln -sf qsft.png artifact/
+          ln -sf qsft_config_example.ini artifact/qsft_config.ini
+          mkdir -p artifact/openvr
+          ln -sf C:/hostedtoolcache/windows/python/3.8/x64/lib/site-packages/openvr/libopenvr_api* artifact/openvr/
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: windows
+          path: |
+            artifact/
+
+  upload-to-release:
+    if: github.event.release.tag_name != ''
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full
+
+      - name: Download and extract artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: windows
+          path: windows/
+
+      - name: Compress data
+        run: |
+          7z a windows.zip windows/
+
+      - name: Upload archives to Release assets
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          file: windows.zip
