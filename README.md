@@ -1,7 +1,7 @@
 # Quest SteamVR FBT Tool
 
 SteamVRに認識されているトラッカーをOSC経由でVRChatで使えるようにするソフトです。  
-Questと名がついていますが別にPCでも使えます。（Oculus PC版VRChat）  
+Questと名がついていますが別にPCでも使えます。（Oculus PC版VRChatなど）  
 VIVE Trackerで動作を確認していますが、他のトラッカーでも動くかもしれません。  
 
 ## 事前準備
@@ -33,7 +33,7 @@ HMD無しでSteamVRを使えるようにする設定が必要です。
 
 ### 3.qsft_config.iniの編集
 
-releasesのページから、zipファイルをダウンロードして解凍します。  
+[releasesのページ](https://github.com/takana-v/quest_steamvr_fbt_tool/releases)から、最新バージョンのzipファイルをダウンロードして解凍します。  
 その中に入っているqsft_config.iniを編集する必要があります。  
 説明を入れているので、それに従って編集してください。  
 
@@ -43,7 +43,7 @@ releasesのページから、zipファイルをダウンロードして解凍し
 
 SteamVRを起動し、トラッカーを認識させておいてください。  
 
-### 2.当ソフトの起動
+### 2.このソフトの起動
 
 `quest_steamvr_fbt_tool.exe`を実行してください。
 
