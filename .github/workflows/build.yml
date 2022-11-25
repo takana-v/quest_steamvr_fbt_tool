@@ -31,19 +31,10 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install -r requirements.txt
           
-      - name: Build with Nuitka
+      - name: Build with pyinstaller
         shell: bash
         run:
-          python -m nuitka
-            --standalone
-            --assume-yes-for-downloads
-            --plugin-enable=numpy
-            --follow-import-to=numpy
-            --include-package-data=openvr
-            --follow-imports
-            --no-prefer-source-code
-            --msvc=14.2
-            quest_steamvr_fbt_tool.py
+          python -m pyinstaller quest_steamvr_fbt_tool.py --noconsole
 
       - name: Create artifact directory with symlink
         shell: bash
@@ -52,11 +43,11 @@ jobs:
         run: |
           set -eux
           mkdir -p artifact
-          ln -sf "$(pwd)/quest_steamvr_fbt_tool.dist"/* artifact/
+          ln -sf "$(pwd)/dist/quest_steamvr_fbt_tool"/* artifact/
           ln -sf qsft.png artifact/
           ln -sf qsft_config_example.ini artifact/qsft_config.ini
           mkdir -p artifact/openvr
-          ln -sf C:/hostedtoolcache/windows/python/3.8/x64/lib/site-packages/openvr/libopenvr_api* artifact/openvr/
+          ln -sf C:/hostedtoolcache/windows/python/3.8/x64/lib/site-packages/openvr/libopenvr_api*.dll artifact/openvr/
 
       - uses: actions/upload-artifact@v2
         with:
