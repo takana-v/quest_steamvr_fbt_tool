@@ -19,7 +19,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.8.10
           architecture: x64
           cache: pip
 
@@ -46,7 +46,7 @@ jobs:
           ln -sf "$(pwd)/qsft_config_example.ini" artifact/qsft_config.ini
           ln -sf "$(pwd)/LICENSE" artifact/LICENSE.txt
           mkdir -p artifact/openvr
-          ln -sf C:/hostedtoolcache/windows/python/3.8/x64/lib/site-packages/openvr/*.dll artifact/openvr/
+          ln -sf C:/hostedtoolcache/windows/python/3.8.10/x64/lib/site-packages/openvr/*.dll artifact/openvr/
 
       - uses: actions/upload-artifact@v2
         with:
