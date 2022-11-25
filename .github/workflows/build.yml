@@ -74,11 +74,11 @@ jobs:
 
       - name: Compress data
         run: |
-          7z a windows.zip windows/
+          7z a quest_steamvr_fbt_tool-win.zip windows/
 
       - name: Upload archives to Release assets
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref }}
-          file: windows.zip
+          file: quest_steamvr_fbt_tool-win.zip
