@@ -41,8 +41,8 @@ jobs:
           set -eux
           mkdir -p artifact
           ln -sf "$(pwd)/dist/quest_steamvr_fbt_tool"/* artifact/
-          ln -sf qsft.png artifact/
-          ln -sf qsft_config_example.ini artifact/qsft_config.ini
+          ln -sf "$(pwd)/qsft.png" artifact/qsft.png
+          ln -sf "$(pwd)/qsft_config_example.ini" artifact/qsft_config.ini
           mkdir -p artifact/openvr
           ln -sf C:/hostedtoolcache/windows/python/3.8/x64/lib/site-packages/openvr/libopenvr_api*.dll artifact/openvr/
 
