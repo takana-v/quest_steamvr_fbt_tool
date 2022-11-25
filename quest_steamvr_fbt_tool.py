@@ -6,7 +6,7 @@ import threading
 import traceback
 
 from math import asin, atan
-from typing import List, Optional
+from typing import List, Tuple, Optional
 
 import openvr
 import wx
@@ -26,7 +26,13 @@ logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
 thread_terminate = False
-openvr.init(openvr.VRApplication_Overlay)
+
+def error_handling():
+    logger.critical(traceback.format_exc())
+    wx.MessageBox("Error occured:\n"+traceback.format_exc(), "Quest SteamVR FBT Tool", wx.ICON_ERROR)
+    global thread_terminate
+    thread_terminate = True
+    wx.Exit()
 
 def get_all_device_serial() -> List[str]:
     ret = []
@@ -50,24 +56,35 @@ def get_device_index(device_name: str, ignore: bool) -> int:
             raise RuntimeError("指定されたデバイスが見つかりませんでした。")
         i += 1
 
-def run_tracker_server(addr: str, port: int, use_device: List[str], ignore_not_found_device: bool, standard_device: Optional[str], delta: float):
-    client = udp_client.SimpleUDPClient(addr, port)
-    poses = []
+def get_position(matrix: List[List[float]]) -> Tuple[float, float, float]:
+    pos_x = matrix[0][3]
+    pos_y = matrix[1][3]
+    pos_z = matrix[2][3]
+    return pos_x, pos_y, pos_z
 
-    device_indexes = []
-    for device in use_device:
-        try:
+def get_euler_angle(matrix: List[List[float]]) -> Tuple[float, float, float]:
+    rot_y = asin(matrix[0][2])
+    if rot_y != 0:
+        rot_x = atan(-matrix[1][2]/matrix[2][2])
+        rot_z = atan(-matrix[0][1]/matrix[0][0])
+    else:
+        rot_x = atan(matrix[2][1]/matrix[1][1])
+        rot_z = 0
+    return rot_x, rot_y, rot_z
+
+
+def run_tracker_server(addr: str, port: int, use_device: List[str], ignore_not_found_device: bool, standard_device: Optional[str], delta: float):
+    try:
+        client = udp_client.SimpleUDPClient(addr, port)
+        poses = []
+        device_indexes = []
+        for device in use_device:
             i = get_device_index(device, ignore_not_found_device)
             if i is not None:
                 device_indexes.append(i)
-        except Exception:
-            logger.critical(traceback.format_exc())
-            clean_taskbar()
-            return
-
-    if len(device_indexes) < 1 or len(device_indexes) > 8:
-        logger.critical(f"Invalid device count: {len(device_indexes)}")
-        clean_taskbar()
+        assert 0 < len(device_indexes) < 9
+    except Exception:
+        error_handling()
         return
     
     if standard_device is not None:
@@ -77,8 +94,7 @@ def run_tracker_server(addr: str, port: int, use_device: List[str], ignore_not_f
             pose = poses[i]
             y_delta = -1 * [list(l) for l in list(pose.mDeviceToAbsoluteTracking)][1][3] + delta
         except Exception:
-            logger.critical(traceback.format_exc())
-            clean_taskbar()
+            error_handling()
             return
     else:
         y_delta = 0
@@ -86,24 +102,15 @@ def run_tracker_server(addr: str, port: int, use_device: List[str], ignore_not_f
     while True:
         if thread_terminate:
             logger.info("Terminate signal received.")
-            clean_taskbar()
+            wx.Exit()
             return
         try:
             poses, _ = openvr.VRCompositor().getLastPoses(poses, None)
             for i,j in enumerate(device_indexes):
                 pose = poses[j]
                 m = [list(l) for l in list(pose.mDeviceToAbsoluteTracking)]
-                pos_x = m[0][3]
-                pos_y = m[1][3]
-                pos_z = m[2][3]
-                # OpenVRから取得できるのは回転行列なのでオイラー角に変換する
-                rot_y = asin(m[0][2])
-                if rot_y != 0:
-                    rot_x = atan(-m[1][2]/m[2][2])
-                    rot_z = atan(-m[0][1]/m[0][0])
-                else:
-                    rot_x = atan(m[2][1]/m[1][1])
-                    rot_z = 0
+                pos_x, pos_y, pos_z = get_position(m)
+                rot_x, rot_y, rot_z = get_euler_angle(m)
                 client.send_message(
                     f"/tracking/trackers/{i+1}/position",
                     [
@@ -121,42 +128,10 @@ def run_tracker_server(addr: str, port: int, use_device: List[str], ignore_not_f
                     ]
                 )
         except Exception:
-            logger.critical(traceback.format_exc())
-            clean_taskbar()
+            error_handling()
             return
 
-def clean_taskbar():
-    wx.Exit()
-
-class TaskBar(wx.adv.TaskBarIcon):
-    def __init__(self):
-        wx.adv.TaskBarIcon.__init__(self)
-        icon = wx.Icon("qsft.png", wx.BITMAP_TYPE_ANY)
-        self.SetIcon(icon, "Quest SteamVR FBT Tool")
-        self.Bind(wx.adv.EVT_TASKBAR_LEFT_UP, self.on_leftclick)
-    
-    def on_leftclick(self, _):
-        pass
-
-    def CreatePopupMenu(self):
-        menu = wx.Menu()
-        menu.Append(1, "Exit")
-        self.Bind(wx.EVT_MENU, self.on_click_menu)
-        return menu
-    
-    def on_click_menu(self, event):
-        if event.GetId() == 1:
-            logger.debug("Exit called.")
-            global thread_terminate
-            thread_terminate = True
-            logger.debug("Joining thread...")
-            thread.join()
-            logger.debug("Thread terminate completed.")
-            self.Destroy()
-            wx.Exit()
-
-if __name__ == "__main__":
-    logger.info(f"Devices: "+ ", ".join(get_all_device_serial()))
+def parse_arg_and_config():
     conf = configparser.ConfigParser()
     conf.read_dict(
         {
@@ -197,22 +172,61 @@ if __name__ == "__main__":
 
     if args.debug or debug:
         logger.setLevel(logging.DEBUG)
-    
-    thread_terminate = False
-    thread = threading.Thread(
-        target=run_tracker_server,
-        args=(
-            args.addr,
-            args.port,
-            args.use_device,
-            args.ignore_not_found_device or ignore_not_found_device,
-            args.standard_device,
-            args.delta
-        )
-    )
-    logger.debug(f"Thread starting... Args: {vars(args)} (Override: ignore_not_found_device: {ignore_not_found_device})")
-    thread.start()
 
+    return (
+        args.addr,
+        args.port,
+        args.use_device,
+        args.ignore_not_found_device or ignore_not_found_device,
+        args.standard_device,
+        args.delta,
+    )
+
+class TaskBar(wx.adv.TaskBarIcon):
+    def __init__(self):
+        wx.adv.TaskBarIcon.__init__(self)
+        icon = wx.Icon("qsft.png", wx.BITMAP_TYPE_ANY)
+        self.SetIcon(icon, "Quest SteamVR FBT Tool")
+        self.Bind(wx.adv.EVT_TASKBAR_LEFT_UP, self.on_leftclick)
+    
+    def on_leftclick(self, _):
+        pass
+
+    def CreatePopupMenu(self):
+        menu = wx.Menu()
+        menu.Append(1, "Exit")
+        self.Bind(wx.EVT_MENU, self.on_click_menu)
+        return menu
+    
+    def on_click_menu(self, event):
+        if event.GetId() == 1:
+            logger.debug("Exit called.")
+            global thread_terminate
+            thread_terminate = True
+            logger.debug("Joining thread...")
+            thread.join()
+            logger.debug("Thread terminate completed.")
+            self.Destroy()
+            wx.Exit()
+
+try:
+    openvr.init(openvr.VRApplication_Overlay)
+except Exception:
+    error_handling()
+
+if __name__ == "__main__":
+    logger.info(f"Devices: "+ ", ".join(get_all_device_serial()))
+
+    thread_terminate = False
+    try:
+        thread = threading.Thread(
+            target=run_tracker_server,
+            args=parse_arg_and_config(),
+        )
+    except Exception:
+        error_handling()
+
+    thread.start()
     app = wx.App()
     TaskBar()
     app.MainLoop() 
